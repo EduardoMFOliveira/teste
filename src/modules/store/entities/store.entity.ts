@@ -1,5 +1,6 @@
 // src/modules/store/entities/store.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { IsIn } from 'class-validator';
 
 @Entity()
 export class Store {
@@ -39,7 +40,8 @@ export class Store {
   @Column()
   state: string;
 
-  @Column({ type: 'enum', enum: ['PDV', 'LOJA'] })
+  @Column({ type: 'varchar' })
+  @IsIn(['PDV', 'LOJA'])
   type: string;
 
   @Column()

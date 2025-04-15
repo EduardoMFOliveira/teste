@@ -8,6 +8,7 @@ import { GoogleMapsClient } from '../../shared/clients/google-maps.client';
 import { ViaCEPClient } from '../../shared/clients/viacep.client';
 import { MelhorEnvioClient } from '../../shared/clients/melhor-envio.client';
 import { ConfigModule } from '@nestjs/config';
+import { CacheUtil } from '../../shared/utils/cache.util';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { ConfigModule } from '@nestjs/config';
     StoreService,
     GoogleMapsClient,
     ViaCEPClient,
-    MelhorEnvioClient
+    MelhorEnvioClient,
+    CacheUtil
   ],
   exports: [StoreService]
 })
