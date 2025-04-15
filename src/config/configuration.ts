@@ -7,7 +7,9 @@ const envSchema = z.object({
   MELHOR_ENVIO_CLIENT_ID: z.string(),
   MELHOR_ENVIO_CLIENT_SECRET: z.string(),
   PORT: z.coerce.number().default(3000),
-  NODE_ENV: z.enum(['development', 'production']).default('development')
+  NODE_ENV: z.enum(['development', 'production']).default('development'),
+  PDV_RADIUS: z.coerce.number().default(50),
+  PDV_SHIPPING_PRICE: z.coerce.number().default(15)
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

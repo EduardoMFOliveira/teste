@@ -1,25 +1,58 @@
 // src/modules/store/store.controller.ts
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Query, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { StoreService } from './store.service';
 import { StoreResponseDto } from './dto/store-response.dto';
+import { StoreRequestDto } from './dto/store-request.dto';
 
 @ApiTags('Stores')
 @Controller('stores')
 export class StoreController {
   constructor(private readonly storeService: StoreService) {}
 
-  @Get('/by-cep')
-  @ApiOperation({ summary: 'Busca lojas por CEP com opções de entrega' })
-  @ApiQuery({ name: 'cep', example: '01001000' })
+  @Get()
+  @ApiOperation({ summary: 'Listar todas as lojas cadastradas' })
   @ApiResponse({ 
     status: 200, 
-    description: 'Retorna lojas PDV ou com opções de frete',
-    type: StoreResponseDto 
+    description: 'Lista completa de lojas',
+    type: [StoreResponseDto] 
   })
-  async findByCep(@Query('cep') cep: string) {
-    return this.storeService.findNearbyStores(cep);
+  async listAll(): Promise<StoreResponseDto[]> {
+    return this.storeService.findAll();
   }
 
-  // Implementar outros endpoints
+  @Get('/by-cep')
+  @ApiOperation({ summary: 'Buscar lojas próximas por CEP' })
+  @ApiResponse({ 
+    status: 200,
+    description: 'Lojas encontradas no raio de busca',
+    type: [StoreResponseDto] 
+  })
+  async storeByCep(@Query() params: StoreRequestDto): Promise<StoreResponseDto[]> {
+    return this.storeService.findNearbyStores(params.cep, params.radius, params.type);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Buscar loja por ID' })
+  @ApiParam({ name: 'id', description: 'UUID da loja', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiResponse({ 
+    status: 200,
+    description: 'Detalhes completos da loja',
+    type: StoreResponseDto 
+  })
+  async storeById(@Param('id') id: string): Promise<StoreResponseDto> {
+    return this.storeService.findById(id);
+  }
+
+  @Get('/state/:uf')
+  @ApiOperation({ summary: 'Buscar lojas por estado (UF)' })
+  @ApiParam({ name: 'uf', description: 'Sigla do estado', example: 'SP' })
+  @ApiResponse({ 
+    status: 200,
+    description: 'Lojas encontradas no estado',
+    type: [StoreResponseDto] 
+  })
+  async storeByState(@Param('uf') uf: string): Promise<StoreResponseDto[]> {
+    return this.storeService.findByState(uf.toUpperCase());
+  }
 }

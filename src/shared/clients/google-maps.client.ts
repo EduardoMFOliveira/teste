@@ -1,7 +1,7 @@
 // src/shared/clients/google-maps.client.ts
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 
 @Injectable()
 export class GoogleMapsClient {
@@ -12,17 +12,14 @@ export class GoogleMapsClient {
     this.apiKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
   }
 
-  async getCoordinates(address: string) {
+  async getCoordinates(address: string): Promise<{ lat: number; lng: number }> {
     try {
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json`,
-        {
-          params: {
-            address: address,
-            key: this.apiKey
-          }
+      const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: {
+          address: address,
+          key: this.apiKey
         }
-      );
+      });
 
       if (!response.data.results[0]) {
         throw new Error('Endereço não encontrado');
@@ -30,29 +27,26 @@ export class GoogleMapsClient {
 
       return response.data.results[0].geometry.location;
     } catch (error) {
-      this.logger.error(`Google Maps Error: ${error.message}`);
-      throw new Error('Erro ao obter coordenadas do Google Maps');
+      this.logger.error(`Erro no Google Maps: ${error.message}`);
+      throw new Error('Falha ao obter coordenadas');
     }
   }
 
-  async calculateDistance(origin: string, destination: string) {
+  async calculateDistance(origin: string, destination: string): Promise<number> {
     try {
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/distancematrix/json`,
-        {
-          params: {
-            origins: origin,
-            destinations: destination,
-            key: this.apiKey,
-            units: 'metric'
-          }
+      const response = await axios.get('https://maps.googleapis.com/maps/api/distancematrix/json', {
+        params: {
+          origins: origin,
+          destinations: destination,
+          key: this.apiKey,
+          units: 'metric'
         }
-      );
+      });
 
-      return response.data.rows[0].elements[0].distance.value / 1000; // Retorna em km
+      return response.data.rows[0].elements[0].distance.value / 1000; // km
     } catch (error) {
-      this.logger.error(`Google Maps Distance Error: ${error.message}`);
-      throw new Error('Erro ao calcular distância');
+      this.logger.error(`Erro no cálculo de distância: ${error.message}`);
+      throw new Error('Falha ao calcular distância');
     }
   }
 }

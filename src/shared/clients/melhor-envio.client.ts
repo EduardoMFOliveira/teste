@@ -3,38 +3,29 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 
+interface ShippingOption {
+  type: string;
+  price: number;
+  deliveryTime: string;
+}
+
 @Injectable()
 export class MelhorEnvioClient {
   private readonly logger = new Logger(MelhorEnvioClient.name);
-  private readonly auth: { client_id: string; client_secret: string };
   private accessToken: string;
+  private readonly auth: {
+    client_id: string;
+    client_secret: string;
+  };
 
   constructor(private configService: ConfigService) {
     this.auth = {
-      client_id: this.configService.get<string>('MELHOR_ENVIO_CLIENT_ID'),
-      client_secret: this.configService.get<string>('MELHOR_ENVIO_CLIENT_SECRET')
+      client_id: this.configService.get('MELHOR_ENVIO_CLIENT_ID'),
+      client_secret: this.configService.get('MELHOR_ENVIO_CLIENT_SECRET')
     };
   }
 
-  private async authenticate() {
-    try {
-      const response = await axios.post(
-        'https://sandbox.melhorenvio.com.br/oauth/token',
-        {
-          grant_type: 'client_credentials',
-          client_id: this.auth.client_id,
-          client_secret: this.auth.client_secret
-        }
-      );
-
-      this.accessToken = response.data.access_token;
-    } catch (error) {
-      this.logger.error('Melhor Envio Auth Error', error.response?.data);
-      throw new Error('Falha na autenticação com Melhor Envio');
-    }
-  }
-
-  async calculateShipping(from: string, to: string) {
+  async calculateShipping(from: string, to: string): Promise<ShippingOption[]> {
     if (!this.accessToken) await this.authenticate();
 
     try {
@@ -59,14 +50,38 @@ export class MelhorEnvioClient {
       );
 
       return response.data.map(option => ({
-        codProdutoAgencia: option.id,
+        type: this.mapServiceType(option.name),
         price: option.price,
-        prazo: option.delivery_time,
-        description: option.name
+        deliveryTime: `${option.delivery_time} dias úteis`
       }));
     } catch (error) {
-      this.logger.error('Melhor Envio Shipping Error', error.response?.data);
-      throw new Error('Erro ao calcular frete');
+      this.logger.error(`Erro no cálculo de frete: ${error.response?.data || error.message}`);
+      throw new Error('Erro ao calcular opções de frete');
     }
+  }
+
+  private async authenticate() {
+    try {
+      const response = await axios.post(
+        'https://sandbox.melhorenvio.com.br/oauth/token',
+        {
+          grant_type: 'client_credentials',
+          ...this.auth
+        }
+      );
+      this.accessToken = response.data.access_token;
+    } catch (error) {
+      this.logger.error('Falha na autenticação no Melhor Envio');
+      throw new Error('Erro de autenticação com Melhor Envio');
+    }
+  }
+
+  private mapServiceType(name: string): string {
+    const types = {
+      'Sedex': 'Sedex',
+      'PAC': 'PAC',
+      'Melhor Envio': 'Econômico'
+    };
+    return types[name] || name;
   }
 }

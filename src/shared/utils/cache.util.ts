@@ -8,8 +8,8 @@ export class CacheUtil {
 
   constructor() {
     this.cache = new NodeCache({
-      stdTTL: 3600, // 1 hora padrão
-      checkperiod: 600 // Verificação a cada 10 minutos
+      stdTTL: 600, // 10 minutos
+      checkperiod: 120
     });
   }
 
