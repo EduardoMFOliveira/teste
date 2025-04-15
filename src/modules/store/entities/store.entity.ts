@@ -1,20 +1,22 @@
 // src/modules/store/entities/store.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
-import { IsIn } from 'class-validator';
 
 @Entity()
 export class Store {
   @PrimaryGeneratedColumn('uuid')
-  storeID: string;
+  id: string;
 
   @Column()
-  storeName: string;
-
-  @Column({ default: true })
-  takeOutInStore: boolean;
+  name: string;
 
   @Column()
-  shippingTimeInDays: number;
+  city: string;
+
+  @Column()
+  state: string;
+
+  @Column()
+  postalCode: string;
 
   @Column('float')
   latitude: number;
@@ -22,37 +24,9 @@ export class Store {
   @Column('float')
   longitude: number;
 
-  @Column()
-  address1: string;
-
-  @Column({ nullable: true })
-  address2?: string;
-
-  @Column({ nullable: true })
-  address3?: string;
-
-  @Column()
-  city: string;
-
-  @Column()
-  district: string;
-
-  @Column()
-  state: string;
+  @Column({ default: 1 })
+  shippingTimeInDays: number;
 
   @Column({ type: 'varchar' })
-  @IsIn(['PDV', 'LOJA'])
   type: string;
-
-  @Column()
-  country: string;
-
-  @Column()
-  postalCode: string;
-
-  @Column()
-  telephoneNumber: string;
-
-  @Column()
-  emailAddress: string;
 }

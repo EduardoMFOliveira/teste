@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SeedModule } from './seed/seed.module';
 import { StoreModule } from './modules/store/store.module';
 import configuration from './config/configuration';
 
@@ -18,7 +19,8 @@ import configuration from './config/configuration';
       synchronize: true,
       logging: process.env.NODE_ENV === 'development'
     }),
-    StoreModule
+    StoreModule,
+    SeedModule
   ],
 })
 export class AppModule {}

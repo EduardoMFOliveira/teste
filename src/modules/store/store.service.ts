@@ -7,15 +7,14 @@ import { ViaCEPClient } from '../../shared/clients/viacep.client';
 import { GoogleMapsClient } from '../../shared/clients/google-maps.client';
 import { MelhorEnvioClient } from '../../shared/clients/melhor-envio.client';
 import { DistanceUtil } from '../../shared/utils/distance.util';
+import { StoreResponseDto } from './dto/store-response.dto';
 import { ConfigService } from '@nestjs/config';
 import { CacheUtil } from '../../shared/utils/cache.util';
-import { StoreResponseDto } from './dto/store-response.dto';
 
 @Injectable()
 export class StoreService {
   private readonly logger = new Logger(StoreService.name);
-  private readonly pdvRadius: number;
-  private readonly pdvPrice: number;
+  private readonly PDV_RADIUS = 50;
 
   constructor(
     @InjectRepository(Store)
@@ -25,28 +24,40 @@ export class StoreService {
     private melhorEnvio: MelhorEnvioClient,
     private configService: ConfigService,
     private cache: CacheUtil
-  ) {
-    this.pdvRadius = this.configService.get<number>('PDV_RADIUS');
-    this.pdvPrice = this.configService.get<number>('PDV_SHIPPING_PRICE');
-  }
+  ) {}
 
+  // Métodos novos para corrigir os erros
   async findAll(): Promise<StoreResponseDto[]> {
     const stores = await this.storeRepository.find();
-    return stores.map(store => this.mapToResponseDto(store));
+    return stores.map(store => this.mapToDto(store));
   }
 
   async findById(id: string): Promise<StoreResponseDto> {
-    const store = await this.storeRepository.findOneBy({ storeID: id });
-    return this.mapToResponseDto(store);
+    const store = await this.storeRepository.findOneBy({ id });
+    return this.mapToDto(store);
   }
 
   async findByState(uf: string): Promise<StoreResponseDto[]> {
-    const stores = await this.storeRepository.find({ where: { state: uf.toUpperCase() } });
-    return stores.map(store => this.mapToResponseDto(store));
+    const stores = await this.storeRepository.find({ 
+      where: { state: uf.toUpperCase() } 
+    });
+    return stores.map(store => this.mapToDto(store));
   }
 
-  async findNearbyStores(cep: string, radius?: number, type?: string): Promise<StoreResponseDto[]> {
-    const cacheKey = `stores_${cep}_${radius || 'all'}_${type || 'all'}`;
+  private mapToDto(store: Store): StoreResponseDto {
+    return {
+      name: store.name,
+      city: store.city,
+      postalCode: store.postalCode,
+      type: store.type,
+      distance: '',
+      shippingOptions: []
+    };
+  }
+
+  // Método principal mantido conforme requisitos
+  async findNearbyStores(cep: string): Promise<StoreResponseDto[]> {
+    const cacheKey = `stores_${cep}`;
     const cached = this.cache.get<StoreResponseDto[]>(cacheKey);
     if (cached) return cached;
 
@@ -57,72 +68,50 @@ export class StoreService {
       );
 
       const stores = await this.storeRepository.find();
-      const processedStores = await this.processStores(stores, userCoords, cep, radius);
-      const filteredStores = this.filterStores(processedStores, type);
-      
-      this.cache.set(cacheKey, filteredStores, 300);
-      return filteredStores;
+      const results = await Promise.all(
+        stores.map(async store => {
+          const distance = await this.calculateDistance(store, userCoords);
+          
+          return {
+            ...this.mapToDto(store),
+            distance: DistanceUtil.formatDistance(distance),
+            type: distance <= this.PDV_RADIUS ? 'PDV' : 'LOJA',
+            shippingOptions: distance <= this.PDV_RADIUS 
+              ? this.getPDVShipping(store) 
+              : await this.getMelhorEnvioShipping(store.postalCode, cep)
+          };
+        })
+      );
+
+      this.cache.set(cacheKey, results, 300);
+      return results;
     } catch (error) {
-      this.logger.error(`CEP: ${cep} - ${error.message}`);
+      this.logger.error(`Erro: ${error.message}`);
       throw error;
     }
   }
 
-  private mapToResponseDto(store: Store): StoreResponseDto {
-    return {
-      name: store.storeName,
-      city: store.city,
-      postalCode: store.postalCode,
-      type: store.type,
-      distance: '',
-      shippingOptions: []
-    };
+  private async calculateDistance(store: Store, userCoords: any): Promise<number> {
+    const origin = `${store.latitude},${store.longitude}`;
+    const destination = `${userCoords.lat},${userCoords.lng}`;
+    return this.googleMaps.calculateDistance(origin, destination);
   }
 
-  private async processStores(stores: Store[], userCoords: any, cep: string, radius?: number) {
-    return Promise.all(stores.map(async store => {
-      const distance = DistanceUtil.haversineDistance(
-        userCoords.lat,
-        userCoords.lng,
-        store.latitude,
-        store.longitude
-      );
-
-      const isPDV = distance <= this.pdvRadius;
-      const shouldInclude = !radius || distance <= radius;
-
-      if (!shouldInclude) return null;
-
-      const baseDto = this.mapToResponseDto(store);
-      
-      return {
-        ...baseDto,
-        distance: DistanceUtil.formatDistance(distance),
-        type: isPDV ? 'PDV' : 'LOJA',
-        shippingOptions: isPDV
-          ? [{
-              type: 'Motoboy',
-              price: this.pdvPrice,
-              deliveryTime: `${store.shippingTimeInDays} dias úteis`
-            }]
-          : await this.getShippingOptions(store.postalCode, cep)
-      };
-    }));
+  private getPDVShipping(store: Store) {
+    return [{
+      type: 'Motoboy',
+      price: 15,
+      deliveryTime: `${store.shippingTimeInDays} dia${store.shippingTimeInDays > 1 ? 's' : ''} útil${store.shippingTimeInDays > 1 ? 'es' : ''}`
+    }];
   }
 
-  private async getShippingOptions(from: string, to: string) {
+  private async getMelhorEnvioShipping(from: string, to: string) {
     try {
       const options = await this.melhorEnvio.calculateShipping(from, to);
-      return options.filter(opt => ['Sedex', 'PAC'].includes(opt.type));
+      return options.filter(opt => ['PAC', 'Sedex'].includes(opt.type));
     } catch (error) {
-      this.logger.error('Erro ao calcular fretes', error.stack);
+      this.logger.error('Erro ao calcular fretes');
       return [];
     }
-  }
-
-  private filterStores(stores: (StoreResponseDto | null)[], type?: string) {
-    return stores
-      .filter(store => store !== null)
-      .filter(store => !type || store.type === type);
   }
 }

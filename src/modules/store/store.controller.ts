@@ -22,19 +22,26 @@ export class StoreController {
   }
 
   @Get('/by-cep')
-  @ApiOperation({ summary: 'Buscar lojas próximas por CEP' })
+  @ApiOperation({ 
+    summary: 'Buscar lojas por CEP',
+    description: 'Retorna todas as lojas com cálculo de frete baseado na distância do CEP informado' 
+  })
   @ApiResponse({ 
     status: 200,
-    description: 'Lojas encontradas no raio de busca',
+    description: 'Lojas encontradas com opções de entrega',
     type: [StoreResponseDto] 
   })
   async storeByCep(@Query() params: StoreRequestDto): Promise<StoreResponseDto[]> {
-    return this.storeService.findNearbyStores(params.cep, params.radius, params.type);
+    return this.storeService.findNearbyStores(params.cep);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar loja por ID' })
-  @ApiParam({ name: 'id', description: 'UUID da loja', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiParam({ 
+    name: 'id', 
+    description: 'UUID da loja',
+    example: '550e8400-e29b-41d4-a716-446655440000' 
+  })
   @ApiResponse({ 
     status: 200,
     description: 'Detalhes completos da loja',
@@ -45,11 +52,18 @@ export class StoreController {
   }
 
   @Get('/state/:uf')
-  @ApiOperation({ summary: 'Buscar lojas por estado (UF)' })
-  @ApiParam({ name: 'uf', description: 'Sigla do estado', example: 'SP' })
+  @ApiOperation({ 
+    summary: 'Buscar lojas por estado', 
+    description: 'Busca por sigla de estado (ex: SP, RJ, MG)' 
+  })
+  @ApiParam({ 
+    name: 'uf', 
+    description: 'Sigla do estado (2 caracteres)',
+    example: 'SP' 
+  })
   @ApiResponse({ 
     status: 200,
-    description: 'Lojas encontradas no estado',
+    description: 'Lojas encontradas no estado solicitado',
     type: [StoreResponseDto] 
   })
   async storeByState(@Param('uf') uf: string): Promise<StoreResponseDto[]> {
