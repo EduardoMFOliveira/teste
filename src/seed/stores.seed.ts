@@ -14,9 +14,28 @@ export class StoreSeedService {
   async seed() {
     const capitals = [
       // Lista completa de capitais
-      { name: 'Dudu Store - AC', city: 'Rio Branco', state: 'AC', postalCode: '69900000', lat: -9.97472, lng: -67.81 },
-      { name: 'Dudu Store - AL', city: 'Maceió', state: 'AL', postalCode: '57010000', lat: -9.647684, lng: -35.733926 },
-      // Adicione todas as capitais seguindo o mesmo padrão
+      { 
+        name: 'Dudu Store - AC', 
+        city: 'Rio Branco', 
+        state: 'AC', 
+        postalCode: '69900000', 
+        lat: -9.97472, 
+        lng: -67.81 },
+      { 
+        name: 'Dudu Store - AL', 
+        city: 'Maceió', 
+        state: 'AL', 
+        postalCode: '57010000', 
+        lat: -9.647684, 
+        lng: -35.733926 },
+      {
+        name: 'Dudu Store - PE',
+        city: 'Recife',
+        state: 'PE',
+        postalCode: '50010000',
+        lat: -8.052250,
+        lng: -34.928610,
+        shippingTimeInDays: 1},
     ];
 
     await Promise.all(capitals.map(async (capital) => {

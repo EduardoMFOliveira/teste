@@ -107,11 +107,18 @@ export class StoreService {
 
   private async getMelhorEnvioShipping(from: string, to: string) {
     try {
+      if (!this.melhorEnvio['accessToken']) { // Verifica se está autenticado
+        await this.melhorEnvio['authenticate']();
+      }
       const options = await this.melhorEnvio.calculateShipping(from, to);
       return options.filter(opt => ['PAC', 'Sedex'].includes(opt.type));
     } catch (error) {
-      this.logger.error('Erro ao calcular fretes');
-      return [];
+      this.logger.error(`Erro Melhor Envio: ${error.message}`, error.stack);
+      return [{
+        type: 'Indisponível',
+        price: 0,
+        deliveryTime: 'Consulte-nos'
+      }];
     }
   }
 }
