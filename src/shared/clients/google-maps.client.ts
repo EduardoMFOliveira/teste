@@ -32,7 +32,7 @@ export class GoogleMapsClient {
     }
   }
 
-  async calculateDistance(origin: string, destination: string): Promise<number> {
+  async calculateDistance(origin: string, destination: string): Promise<{distance: number, duration: number}> {
     try {
       const response = await axios.get('https://maps.googleapis.com/maps/api/distancematrix/json', {
         params: {
@@ -43,7 +43,11 @@ export class GoogleMapsClient {
         }
       });
 
-      return response.data.rows[0].elements[0].distance.value / 1000; // km
+      const element = response.data.rows[0].elements[0];
+      return {
+        distance: element.distance.value / 1000, // km
+        duration: element.duration.value // segundos
+      };
     } catch (error) {
       this.logger.error(`Erro no cálculo de distância: ${error.message}`);
       throw new Error('Falha ao calcular distância');

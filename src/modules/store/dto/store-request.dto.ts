@@ -13,8 +13,8 @@ export class StoreRequestDto {
   cep: string;
 
   @ApiProperty({
-    example: 100,
-    description: 'Raio de busca em quilômetros',
+    example: 50,
+    description: 'Raio de busca em quilômetros (default: 50)',
     required: false
   })
   @IsNumber()

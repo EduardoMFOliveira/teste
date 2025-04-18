@@ -10,23 +10,26 @@ import { DistanceUtil } from '../../shared/utils/distance.util';
 import { StoreResponseDto } from './dto/store-response.dto';
 import { ConfigService } from '@nestjs/config';
 import { CacheUtil } from '../../shared/utils/cache.util';
+import { ShippingOptionDto } from './dto/store-response.dto';
 
 @Injectable()
 export class StoreService {
   private readonly logger = new Logger(StoreService.name);
-  private readonly PDV_RADIUS = 50;
+  private readonly PDV_RADIUS: number;
+  private readonly PDV_SHIPPING_PRICE: number;
 
   constructor(
-    @InjectRepository(Store)
-    private storeRepository: Repository<Store>,
+    @InjectRepository(Store) private storeRepository: Repository<Store>,
     private viaCEP: ViaCEPClient,
     private googleMaps: GoogleMapsClient,
     private melhorEnvio: MelhorEnvioClient,
     private configService: ConfigService,
     private cache: CacheUtil
-  ) {}
+  ) {
+    this.PDV_RADIUS = this.configService.get<number>('PDV_RADIUS', 50);
+    this.PDV_SHIPPING_PRICE = this.configService.get<number>('PDV_SHIPPING_PRICE', 15);
+  }
 
-  // Métodos novos para corrigir os erros
   async findAll(): Promise<StoreResponseDto[]> {
     const stores = await this.storeRepository.find();
     return stores.map(store => this.mapToDto(store));
@@ -38,8 +41,8 @@ export class StoreService {
   }
 
   async findByState(uf: string): Promise<StoreResponseDto[]> {
-    const stores = await this.storeRepository.find({ 
-      where: { state: uf.toUpperCase() } 
+    const stores = await this.storeRepository.find({
+      where: { state: uf.toUpperCase() }
     });
     return stores.map(store => this.mapToDto(store));
   }
@@ -55,65 +58,71 @@ export class StoreService {
     };
   }
 
-  // Método principal mantido conforme requisitos
-  async findNearbyStores(cep: string): Promise<StoreResponseDto[]> {
-    const cacheKey = `stores_${cep}`;
+  async findNearbyStores(cep: string, radius?: number): Promise<StoreResponseDto[]> {
+    const effectiveRadius = radius ?? this.PDV_RADIUS;
+    const cacheKey = `stores_${cep}_${effectiveRadius}`;
+    
     const cached = this.cache.get<StoreResponseDto[]>(cacheKey);
     if (cached) return cached;
 
     try {
       const address = await this.viaCEP.getAddress(cep);
-      const userCoords = await this.googleMaps.getCoordinates(
-        `${address.street}, ${address.city}`
-      );
-
+      const userCoords = await this.googleMaps.getCoordinates(`${address.street}, ${address.city}`);
       const stores = await this.storeRepository.find();
+
       const results = await Promise.all(
         stores.map(async store => {
-          const distance = await this.calculateDistance(store, userCoords);
-          
-          return {
-            ...this.mapToDto(store),
-            distance: DistanceUtil.formatDistance(distance),
-            type: distance <= this.PDV_RADIUS ? 'PDV' : 'LOJA',
-            shippingOptions: distance <= this.PDV_RADIUS 
-              ? this.getPDVShipping(store) 
-              : await this.getMelhorEnvioShipping(store.postalCode, cep)
-          };
+          try {
+            const origin = `${store.latitude},${store.longitude}`;
+            const destination = `${userCoords.lat},${userCoords.lng}`;
+            
+            const { distance, duration } = await this.googleMaps.calculateDistance(origin, destination);
+            
+            const storeType = distance <= effectiveRadius ? 'PDV' : 'LOJA';
+            const shippingOptions = storeType === 'PDV'
+              ? this.getPDVShipping(duration)
+              : await this.getMelhorEnvioShipping(store.postalCode, cep);
+
+            return {
+              ...this.mapToDto(store),
+              distance: DistanceUtil.formatDistance(distance),
+              type: storeType,
+              shippingOptions
+            };
+          } catch (error) {
+            this.logger.error(`Erro processando loja ${store.id}: ${error.message}`);
+            return null;
+          }
         })
       );
 
-      this.cache.set(cacheKey, results, 300);
-      return results;
+      const filteredResults = results.filter(r => r !== null);
+      this.cache.set(cacheKey, filteredResults, 300);
+      return filteredResults;
     } catch (error) {
-      this.logger.error(`Erro: ${error.message}`);
+      this.logger.error(`Erro ao buscar lojas próximas: ${error.message}`);
       throw error;
     }
   }
 
-  private async calculateDistance(store: Store, userCoords: any): Promise<number> {
-    const origin = `${store.latitude},${store.longitude}`;
-    const destination = `${userCoords.lat},${userCoords.lng}`;
-    return this.googleMaps.calculateDistance(origin, destination);
-  }
-
-  private getPDVShipping(store: Store) {
+  private getPDVShipping(durationSeconds: number): ShippingOptionDto[] {
+    const hours = durationSeconds / 3600;
+    let estimatedDays = Math.ceil(hours / 24);
+    if (estimatedDays < 1) estimatedDays = 1;
+    
     return [{
       type: 'Motoboy',
-      price: 15,
-      deliveryTime: `${store.shippingTimeInDays} dia${store.shippingTimeInDays > 1 ? 's' : ''} útil${store.shippingTimeInDays > 1 ? 'es' : ''}`
+      price: this.PDV_SHIPPING_PRICE,
+      deliveryTime: `${estimatedDays} dia${estimatedDays > 1 ? 's' : ''} útil${estimatedDays > 1 ? 'es' : ''}`
     }];
   }
 
   private async getMelhorEnvioShipping(from: string, to: string) {
     try {
-      if (!this.melhorEnvio['accessToken']) { // Verifica se está autenticado
-        await this.melhorEnvio['authenticate']();
-      }
       const options = await this.melhorEnvio.calculateShipping(from, to);
       return options.filter(opt => ['PAC', 'Sedex'].includes(opt.type));
     } catch (error) {
-      this.logger.error(`Erro Melhor Envio: ${error.message}`, error.stack);
+      this.logger.error(`Erro Melhor Envio: ${error.message}`);
       return [{
         type: 'Indisponível',
         price: 0,

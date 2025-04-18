@@ -32,7 +32,7 @@ export class StoreController {
     type: [StoreResponseDto] 
   })
   async storeByCep(@Query() params: StoreRequestDto): Promise<StoreResponseDto[]> {
-    return this.storeService.findNearbyStores(params.cep);
+    return this.storeService.findNearbyStores(params.cep, params.radius);
   }
 
   @Get(':id')

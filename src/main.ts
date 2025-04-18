@@ -9,7 +9,7 @@ async function bootstrap() {
 
   // Configuração do Swagger
   const config = new DocumentBuilder()
-    .setTitle('Dudu Store Delivery API')
+    .setTitle('Dudu Store e Delivery')
     .setDescription('API para gestão das lojas Dudu Store em todas as capitais do Brasil')
     .setVersion('1.0')
     .addTag('stores')
